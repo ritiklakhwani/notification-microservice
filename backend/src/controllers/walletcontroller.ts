@@ -1,33 +1,34 @@
 import type { Response } from "express";
-import { z } from "zod";
+import { templateLiteral, z } from "zod";
 import { prisma } from "../../db";
 import type { AuthRequest } from "../middleware/auth";
+import { enqueueNotification } from "../notify";
 
 const walletOnrampSchema = z.object({
   amount: z.coerce.number().positive(),
 });
 
-let notificationId = 1;
+//fetch
+// let notificationId = 1;
 
-async function createWalletNotification(userId: number) {
-  await fetch("http://localhost:3001/notification/wallet", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      id: notificationId,
-      user: userId,
-      template: "wallet-onramp-success",
-      service: "EMAIL" as const,
-      priority: 0,
-    }),
-  });
-}
+// async function createWalletNotification(userId: number) {
+//   await fetch("http://localhost:3001/notification/wallet", {
+//     method: "POST",
+//     headers: {
+//       "Content-Type": "application/json",
+//     },
+//     body: JSON.stringify({
+//       id: notificationId,
+//       user: userId,
+//       template: "wallet-onramp-success",
+//       service: "EMAIL" as const,
+//       priority: 0,
+//     }),
+//   });
+// }
 
 export async function walletOnramp(req: AuthRequest, res: Response) {
   try {
-    notificationId++;
     const body = walletOnrampSchema.parse(req.body);
 
     if (!req.user) {
@@ -49,12 +50,17 @@ export async function walletOnramp(req: AuthRequest, res: Response) {
     });
 
     //TODO: Send notification to user
-    createWalletNotification(req.user.id);
-
+    const notifId = await enqueueNotification({
+      user: req.user.id,
+      template: "wallet-onramp-success",
+      service: "EMAIL",
+      priority: 0,
+      data: { amount: body.amount }
+    })
     res.status(201).json({
       message: "Wallet onramp successful",
       amount: body.amount,
-      notification: notificationId,
+      notification: notifId,
       balance: wallet.balance,
     });
   } catch (error) {

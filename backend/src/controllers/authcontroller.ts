@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { prisma } from "../../db";
 import axios from "axios";
+import { enqueueNotification } from "../notify";
 
 const signupSchema = z.object({
   email: z.string().email(),
@@ -16,22 +17,6 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-let notificationId = 1;
-
-async function createSignupNotification(userId: number) {
-  await fetch("http://localhost:3001/notification/signup", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      id: notificationId,
-      user: userId,
-      template: "signup-success",
-      service: "EMAIL" as const,
-      priority: 1,
-    }),
-  });
 
   // await axios.post("http://localhost:3001/notification/signup", JSON.stringify({
   //     id: notificationId,
@@ -40,11 +25,10 @@ async function createSignupNotification(userId: number) {
   //     service: "EMAIL" as const,
   //     priority: 1,
   //   }))
-}
+
 
 export async function signup(req: Request, res: Response) {
   try {
-    notificationId++;
     const body = signupSchema.parse(req.body);
     const existingUser = await prisma.user.findUnique({
       where: { email: body.email },
@@ -61,12 +45,18 @@ export async function signup(req: Request, res: Response) {
     });
 
     //TODO: Send notification to user
-    createSignupNotification(user.id);
+     const notifId = await enqueueNotification({
+      user: user.id,
+      template: "signup-success",
+      service: "EMAIL" as const,
+      priority: 1,
+    })
+
 
     res.status(201).json({
       message: "Signup successful",
       userId: user.id,
-      notification: notificationId,
+      notification: notifId,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
