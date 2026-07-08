@@ -1,53 +1,87 @@
-import { createClient } from "redis";
+import { redis } from "./redis";
 import { prisma } from "../../backend/db";
-import type { UnderlyingSink } from "bun";
+import { renderTemplate, type TemplateName } from "./template";
 
-export const redis = createClient({
-  url: process.env.REDIS_URL,
-});
+type Payload = {
+  id: number;
+  user: number | "ALL";
+  template: TemplateName;
+  service: "EMAIL";
+  priority: 0 | 1 | 2;
+  data?: Record<string, any>;
+};
 
-await redis.connect();
+type EmailJob = {
+  jobId: string;
+  notificationId: number;
+  userId: number;
+  to: string;
+  subject: string;
+  html: string;
+  priority: 0 | 1 | 2;
+};
 
-type USER = {
-    role: string;
-    id: number;
-    email: string;
-    password: string;
-    createdAt: Date;
-} 
+export const iterator = async (payload: Payload) => {
+  const users =
+    payload.user === "ALL"
+      ? await prisma.user.findMany({
+          select: {
+            id: true,
+            email: true,
+            wallet: { select: { balance: true } },
+          },
+        })
+      : await prisma.user.findMany({
+          where: { id: payload.user },
+          select: { id: true, email: true, wallet: { select: { balance: true } }, },
+        });
 
+  await Promise.allSettled(
+    users.map(async (user) => {
+      let username = user.email.split("@")[0];
 
-export const iterator = async (payload: any) => {
-  const user: USER | null = await prisma.user.findUnique({
-    where: {
-      id: payload.id,
-    },
-  });
+      let subject = "";
+      let variables: Record<string, any> = {};
 
-  if(user == null) {
-    return 0;
-  }
+      if (payload.template === "signup-success") {
+        subject = "Welcome!";
+        variables = { username };
+      }
+      if (payload.template === "wallet-onramp-success") {
+        subject = "Wallet credited";
+        variables = { username, amount: payload.data?.amount ?? 0 };
+      }
+      if (payload.template === "marketing-email") {
+        subject = String(payload.data?.subject ?? "Update");
+        variables = {
+          username,
+          title: payload.data?.subject ?? "",
+          message: payload.data?.message ?? "",
+        };
+      }
 
-  const template = 
+      const html = await renderTemplate({
+        template: payload.template,
+        variables,
+      });
 
-  const cachedData = {
-    notificationId: payload.id,
-    email: user.email,
-    template: template,
-    userId: user.id,
-  };
+      const job: EmailJob = {
+        jobId: `${payload.id}:${user.id}`,
+        notificationId: payload.id,
+        userId: user.id,
+        to: user.email,
+        subject,
+        html,
+        priority: payload.priority,
+      };
 
-  await redis.set(`${payload.id}`, "processing");
+      const fresh = await redis.set(`status:${job.jobId}`, "1", {
+        NX: true,
+        EX: 86400,
+      });
+      if (fresh === null) return; // already queued
 
-  if (payload.priority === 0) {
-    await redis.lPush("queue:0", JSON.stringify(cachedData));
-  }
-
-  if (payload.priority === 1) {
-    await redis.lPush("queue:1", JSON.stringify(cachedData));
-  }
-
-  if (payload.priority === 2) {
-    await redis.lPush("queue:2", JSON.stringify(cachedData));
-  }
-}
+      await redis.lPush(`queue:p${payload.priority}`, JSON.stringify(job));
+    }),
+  );
+};
