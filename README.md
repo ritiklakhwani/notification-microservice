@@ -1,13 +1,6 @@
 # Notification Microservice
 
-An event driven notification system built with Bun, Redis, and Postgres. A REST
-backend handles the application logic such as authentication, wallet top ups,
-and marketing sends. Whenever something happens that a user should be told
-about, the backend publishes a small notification event and returns immediately.
-A separate notification service listens for those events and does the slow work
-in the background, which means resolving the recipients, rendering the email,
-and delivering it. The request path stays fast, and the email workload scales
-independently of the API.
+An event driven notification system built with Bun, Redis, and Postgres. The backend does its job, fires a small event, and responds instantly. A separate service takes over from there, resolving recipients, rendering templates, and sending email through priority queues in the background. The result is an API that never waits on email and an email pipeline that scales on its own.
 
 ## Architecture
 
