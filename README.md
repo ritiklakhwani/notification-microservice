@@ -11,9 +11,7 @@ independently of the API.
 
 ## Architecture
 
-<!-- Paste your architecture diagram image below this line. -->
-
-
+<img width="1089" height="553" alt="Screenshot 2026-07-08 at 5 43 28 PM" src="https://github.com/user-attachments/assets/37599875-3b62-4754-807a-505da7c00f33" />
 
 ## Table of contents
 
