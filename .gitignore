@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# redis snapshot
+dump.rdb
+
+# dependencies
+node_modules
+
+# env
+.env
+.env.local

@@ -2,7 +2,7 @@ import { redis } from "./redis";
 import { prisma } from "../../backend/db";
 import { renderTemplate, type TemplateName } from "./template";
 
-type Payload = {
+export type Payload = {
   id: number;
   user: number | "ALL";
   template: TemplateName;
@@ -11,7 +11,7 @@ type Payload = {
   data?: Record<string, any>;
 };
 
-type EmailJob = {
+export type EmailJob = {
   jobId: string;
   notificationId: number;
   userId: number;
